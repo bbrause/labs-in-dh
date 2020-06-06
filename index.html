@@ -1,0 +1,572 @@
+<html>
+<head>
+    <script src="d3.v5.min.js" charset="utf-8"></script>
+    <script src="numjs.min.js" charset="utf-8"></script>
+    <style>
+      .ontop {
+        background-color:aliceblue;
+        display: block;
+        float: left;  
+        z-index: 3;
+        position: absolute;
+      }
+
+      .ontop-inner {
+        margin: 20px 5px;
+      }
+    </style>
+</head>
+<body>
+  <div class="ontop">
+    <div id="titlebox" class="ontop-inner">"LAB" / "LABORATORY"<br>
+    sentence co-occurrence graph<br><br>
+    <hr>
+    Journals: <br>"Digital Scholarship in the Humanities" (1986 - 2020)<br>
+    "Language, Resources and Evaluation" (1966 - 2019)<br>
+    "Digital Humanities Quarterly" (2007 - 2019)<hr>
+    tokenized & lemmatized using spaCy
+    </div>
+    <div id="settingsbox" class="ontop-inner">
+      link strength: <input style="width:240px;" type="range" id="linkstrength" min="0.1" max="0.9" step="any" value="0.5">
+      <button type="button" id="load" onclick="load_button(this)">load data</button>
+      <button type="button" id="draw" onclick="draw_button(this)" disabled="true">calculate & draw</button>
+    </div>
+  </div>
+    <div id="graph"></div>
+<script>
+
+async function load_button(b) {
+  b.innerHTML = "please wait...";
+  b.style.pointerEvents = "none";
+  await load_all_data();
+  b.innerHTML = "data loaded";
+  b.disabled = true;
+  document.getElementById("draw").disabled = false;
+}
+
+async function draw_button(b) {
+  b.innerHTML = "please wait...";
+  b.style.pointerEvents = "none";
+  await sleep(100);
+  await init();
+  b.innerHTML = "calculate & draw";
+  b.style.pointerEvents = "auto";
+}
+
+const sleep = (milliseconds) => {
+  return new Promise(resolve => setTimeout(resolve, milliseconds))
+}
+
+var journal_data = {};
+journal_data["dsh"] = [1980, 1990, 2000, 2010];
+journal_data["lre"] = [1960, 1970, 1980, 1990, 2000, 2010];
+journal_data["dhq"] = [2000, 2010];
+
+function sortProperties(obj) {
+  // convert object into array
+	var sortable=[];
+	for(var key in obj)
+		if(obj.hasOwnProperty(key))
+			sortable.push([key, obj[key]]); // each item is an array in format [key, value]
+	
+	// sort items by value
+	sortable.sort(function(a, b)
+	{
+		var x=a[1],
+			  y=b[1];
+		return x<y ? 1 : x>y ? -1 : 0;
+	});
+	return sortable; // array in format [ [ key1, val1 ], [ key2, val2 ], ... ]
+};
+
+async function get_sig_matrix() {
+  var seed_cooc = get_top_cooc(seed_idx, cooc_num, metric);
+
+  var sig_matrix = {};
+  sig_matrix[seed_idx] = {};
+
+  for (let cooc of seed_cooc) {
+    term_idx = cooc[0];
+    coeff = cooc[1];
+
+    sig_matrix[seed_idx][term_idx] = coeff;
+    sig_matrix[term_idx] = {};
+
+    cooc_arr = get_top_cooc(term_idx, cooc_num, metric);
+
+    for (let cococooc of cooc_arr) {
+      term_idx_ = cococooc[0];
+      coeff_ = cococooc[1];
+
+      sig_matrix[term_idx][term_idx_] = coeff_;
+    }
+  }
+
+  return sig_matrix;
+}
+
+function get_total_token_count() {
+  sum = 0;
+
+  for (let term_id in term_freq) {
+    sum += term_freq[term_id];
+  }
+
+  return sum;
+}
+
+function get_cooc_arr(term_id) {
+  var vocab_len = Object.keys(vocabulary).length;
+  var cooc_arr = {};
+
+  term_id = term_id.toString();
+
+  for (i = 0; i < vocab_len; i++) {
+    var value = 0;
+    i = i.toString();
+    for (let journal of journals) {
+      for (let decade of decades) {
+        if (!(decade in cooc_matrix_dict[journal])) {
+          continue;
+        }
+        if (term_id in cooc_matrix_dict[journal][decade]) {
+          if (i in cooc_matrix_dict[journal][decade][term_id]) {
+            value += cooc_matrix_dict[journal][decade][term_id][i];
+          }
+        }
+        if (i in cooc_matrix_dict[journal][decade]) {
+          if (term_id in cooc_matrix_dict[journal][decade][i]) {
+            value += cooc_matrix_dict[journal][decade][i][term_id];
+          }
+        }
+      }
+    }
+    if (value > 0) {
+      cooc_arr[i] = value;
+    }
+  }
+
+  if (term_id == seed_idx) {
+    console.log(cooc_arr);
+  }
+
+  return cooc_arr;
+}
+
+function get_top_cooc(term_id, top_num, metric) {
+  var vocab_len = Object.keys(vocabulary).length;
+  var n = get_total_token_count();
+
+  var loglik_dict = {};
+
+  var cooc_arr = get_cooc_arr(term_id);
+
+  for (i = 0; i < vocab_len; i++) {
+    if (!(i in cooc_arr)) {
+      continue;
+    }
+    var n_ab = cooc_arr[i];
+    var n_a = term_freq[term_id];
+    var n_b = term_freq[i];
+    coeff = loglik(n_ab, n_a, n_b, n);
+    loglik_dict[i] = coeff;
+  }
+
+  return sortProperties(loglik_dict).slice(0, top_num);
+}
+
+async function add_dict_to_dict_nested(base, to_add) {
+  for (let row in to_add) {
+    if (!(row in base)) {
+      base[row] = {};
+    }
+    for (let col in to_add[row]) {
+      if (!(col in base[row])) {
+        base[row][col] = 0;
+      }
+      base[row][col] += to_add[row][col];
+
+      if (!(col in base)) {
+        base[col] = {};
+      }
+
+      if (!(row in base[col])) {
+        base[col][row] = 0;
+      }
+      base[col][row] += to_add[row][col];
+    }
+  }
+
+  return base;
+}
+
+function add_dict_to_dict(base, to_add, relevant_indices) {
+  for (let key in to_add) {
+    if (!(key in base)) {
+      base[key] = 0;
+    }
+    base[key] += to_add[key];
+  }
+  return base;
+}
+
+async function get_cooc_matrix(journals, decades) {
+  var matrix = {};
+
+  for (let journal of journals) {
+    for (let decade of decades) {
+      if (!journal_data[journal].includes(parseInt(decade))) {
+        continue;
+      }
+      matrix = await add_dict_to_dict_nested(matrix, cooc_matrix_dict[journal][decade]);
+      await sleep(10);
+    }
+  }
+
+  return matrix;
+}
+
+async function get_term_freq(journals, decades) {
+  var term_freq = {};
+
+  for (let journal of journals) {
+    for (let decade of decades) {
+      if (!journal_data[journal].includes(parseInt(decade))) {
+        continue;
+      }
+      term_freq = add_dict_to_dict(term_freq, term_freq_dict[journal][decade]);
+    }
+  }
+
+  return term_freq;
+}
+
+async function read_matrix(path) {
+  var matrix_dict = await d3.json(path);
+  return matrix_dict;
+}
+
+async function read_term_freq(path) {
+  var term_freq_dict = await d3.json(path);
+  return term_freq_dict;
+}
+
+function loglik(n_ab, n_a, n_b, n) {
+  if (n_ab == 0) {
+    return 0;
+  }
+
+  var lambda = n*Math.log(n) - n_a*Math.log(n_a) - n_b*Math.log(n_b) + n_ab*Math.log(n_ab)
+            + (n - n_a - n_b + n_ab)*Math.log(n - n_a - n_b + n_ab)
+            + (n_a - n_ab)*Math.log(n_a - n_ab) + (n_b - n_ab)*Math.log(n_b - n_ab)
+            - (n - n_a)*Math.log(n - n_a) - (n - n_b)*Math.log(n - n_b);
+
+  return 2*Math.log(lambda);
+}
+
+function getKeyByValue(object, value) {
+    return Object.keys(object).find(key => object[key] === value);
+};
+
+function link_in_graph(source, target, links) {
+  for (let link of links) {
+    if ((link.source == source) && (link.target == target)) {
+      return true;
+    } else if ((link.source == target) && (link.target == source)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+var seed_word = "theory";
+var seed_idx;
+
+var threshold = 5;
+var cutoff_num = 25;
+var min_degree = 2;
+var cooc_num = 100;
+var metric = "ll";
+var total_freq;
+
+var graph = {};
+
+var journals = ["dhq", "dsh", "lre"];
+var decades = [1960, 1970, 1980, 1990, 2000, 2010];
+
+var cooc_matrix_dict = {};
+var term_freq_dict = {};
+
+async function load_all_data() {
+  for (let journal in journal_data) {
+    cooc_matrix_dict[journal] = {};
+    term_freq_dict[journal] = {};
+    for (let decade of journal_data[journal]) {
+      path = "data/" + journal + "_" + decade + "_cooc_matrix.json";
+      cooc_matrix_dict[journal][decade] = await read_matrix(path); 
+      path = "data/" + journal + "_" + decade + "_term_freq.json";
+      term_freq_dict[journal][decade] = await read_term_freq(path); 
+    }
+  }
+  vocabulary = await d3.json("data/vocabulary_.json");
+  seed_idx = getKeyByValue(vocabulary, seed_word);
+}
+
+async function init() {
+    // term_freq = await d3.json("term_freq_interconnect_25.json");
+     // cooc_matrix = await d3.json("logl_cooc_interconnect_25.json");
+
+    // cooc_matrix = await get_cooc_matrix(journals, decades);
+    // console.log("cooc");
+    term_freq = await get_term_freq(journals, decades);
+
+    sig_matrix = await get_sig_matrix();
+
+    total_freq = get_total_token_count();
+
+    await start();
+}
+
+function term_in_nodes(term, nodes) {
+  for (let node of nodes) {
+    if (node.id == term) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function get_number_of_links(node, links) {
+  var count = 0;
+
+  for (let link of links) {
+    if ((link.source == node.id) || (link.target == node.id)) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+async function start() {
+    graph["nodes"] = [];
+    graph["links"] = [];
+
+    var count_a = 0;
+
+    graph["nodes"].push({ "id" : seed_idx, "term" : seed_word, "freq" : term_freq[seed_idx] });
+
+    cooc_arr_seed = sortProperties(sig_matrix[seed_idx]).slice(0, cutoff_num);
+
+    for (let cooc_a of cooc_arr_seed) {
+      term_id_a = cooc_a[0];
+
+      if (!term_in_nodes(term_id_a, graph["nodes"])) {
+        graph["nodes"].push({ "id" : term_id_a, "term" : vocabulary[term_id_a], "freq" : term_freq[term_id_a] });
+        count_a += 1;
+      }
+      if (sig_matrix[seed_idx][term_id_a] >= threshold) {
+        coeff = sig_matrix[seed_idx][term_id_a];
+        graph["links"].push({ "source" : seed_idx, "target" : term_id_a, "significance" : coeff })
+      }
+
+      cooc_arr_a = sortProperties(sig_matrix[term_id_a]).slice(0, cutoff_num);
+
+      for (let cooc_b of cooc_arr_a) {
+        term_id_b = cooc_b[0];
+
+        if (sig_matrix[term_id_a][term_id_b] < threshold) {
+          break;
+        }
+        if (!term_in_nodes(term_id_b, graph["nodes"])) {
+          graph["nodes"].push({ "id" : term_id_b, "term": vocabulary[term_id_b], "freq" : term_freq[term_id_b] });
+        }
+        if (!link_in_graph(term_id_a, term_id_b, graph["links"])) {
+            coeff = sig_matrix[term_id_a][term_id_b];
+            graph["links"].push({ "source" : term_id_a, "target" : term_id_b, "significance" : coeff })
+        }
+      }
+    }
+
+    for (var i = graph["nodes"].length - 1; i >= 0; i--) {
+      var number = get_number_of_links(graph["nodes"][i], graph["links"]);
+      if (number < min_degree & graph["nodes"][i].id != seed_idx) {
+        graph["nodes"].splice(i, 1);
+      }
+    }
+
+    for (var i = graph["links"].length - 1; i >= 0; i--) {
+      if (!(term_in_nodes(graph["links"][i].source, graph["nodes"])) || !(term_in_nodes(graph["links"][i].target, graph["nodes"]))) { 
+        graph["links"].splice(i, 1);
+      }
+    }
+
+    console.log(graph);
+    drawGraph(graph);
+}
+
+/*
+async function start() {
+    var graph = {};
+    graph["nodes"] = [];
+    graph["links"] = [];
+
+    for (let term_a in term_freq) {
+      if (term_a == seed_word) {
+        graph["nodes"].push({ "id" : term_a, "significance" : 15 });
+      } else {
+        graph["nodes"].push({ "id" : term_a, "significance" : cooc_matrix[seed_word][term_a] });
+      }
+    }
+
+    for (let term_a in term_freq) {
+      cooc_arr = sortProperties(cooc_matrix[term_a]);
+
+      let count = 0;
+
+      for (let term_b of cooc_arr) {
+        if (term_b[0] == seed_word) {
+          continue;
+        }
+        if (term_a == seed_word) {
+          if (!link_in_graph(term_a, term_b, graph["links"])) {
+            graph["links"].push({ "source" : term_a, "target" : term_b[0], "significance" : term_b[1] })
+          }
+        } else {
+          if ((count >= cutoff_num) || (term_b[1] < threshold)) {
+            break;
+          }
+          if (!link_in_graph(term_a, term_b, graph["links"])) {
+            graph["links"].push({ "source" : term_a, "target" : term_b[0], "significance" : term_b[1] })
+            if (term_a == "MIT") {
+              console.log(term_b, count);
+            }
+            count += 1;
+          }
+        }
+      }
+    }
+
+    console.log(graph);
+
+    drawGraph(graph);
+};
+*/
+
+var height = window.innerHeight - 20;
+var width =  window.innerWidth;
+
+var canvas = d3.select('#graph').append('canvas')
+.attr('width', width + 'px')
+.attr('height', height + 'px');
+
+var canvas = document.querySelector("canvas"),
+    context = canvas.getContext("2d");
+
+var simulation = d3.forceSimulation()
+    .force("link", d3.forceLink().id(function(d) { return d.id; }))
+    .force("charge", d3.forceManyBody().strength(-800))
+    .force("center", d3.forceCenter(width / 2, height / 2))
+    .force("collide", d3.forceCollide().radius(33).strength(0.1))
+    //.alphaTarget(0.01);
+    //.alphaDecay(0.02);
+
+d3.select("input[id=linkstrength]")
+    .on("input", inputted);
+
+d3.select("input[id=seed_word]")
+    .on("input", function() {
+      seed_word = this.value;
+      start();
+    });
+
+function drawGraph(graph) {
+  simulation
+      .nodes(graph.nodes)
+      .on("tick", ticked);
+
+  simulation.force("link")
+      .links(graph.links);
+
+  d3.select(canvas)
+      .call(d3.drag()
+          .container(canvas)
+          .subject(dragsubject)
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended));
+
+  function ticked() {
+    var margin = 20;
+    graph.nodes.forEach(function(d) { 
+      d.x = Math.max(margin, Math.min(width - margin, d.x))
+      d.y = Math.max(margin, Math.min(height - margin, d.y))
+    })
+
+    context.clearRect(0, 0, width, height);
+
+    context.beginPath();
+    graph.links.forEach(drawLink);
+    context.stroke();
+
+    context.beginPath();
+    graph.nodes.forEach(drawNode);
+    context.fill();
+    context.lineWidth = 1;
+    context.strokeStyle = "#fff";
+    context.stroke();
+  }
+
+  function dragsubject() {
+    return simulation.find(d3.event.x, d3.event.y);
+  }
+};
+
+function inputted() {
+  value = (1 - this.value)**3.33;
+  simulation.force("link").strength(value);
+  simulation.alphaTarget(0.03).restart();
+}
+
+function dragstarted() {
+  if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+  d3.event.subject.fx = d3.event.subject.x;
+  d3.event.subject.fy = d3.event.subject.y;
+}
+
+function dragged() {
+  d3.event.subject.fx = d3.event.x;
+  d3.event.subject.fy = d3.event.y;
+}
+
+function dragended() {
+  if (!d3.event.active) simulation.alphaTarget(0);
+  d3.event.subject.fx = null;
+  d3.event.subject.fy = null;
+}
+
+function drawLink(d) {
+  context.moveTo(d.source.x, d.source.y);
+  context.lineTo(d.target.x, d.target.y);
+  if (d.source.id == "lab / laboratory") {
+    context.strokeStyle = "darkred";
+  } else {
+    context.strokeStyle = "#ccc";
+  }
+}
+
+function drawNode(d) {
+  context.moveTo(d.x + 3, d.y);
+  context.arc(d.x, d.y, 3, 0, 2 * Math.PI);
+  if (d.id == seed_idx) {
+    context.fillStyle = "darkred";
+  } else {
+    context.fillStyle = "black";
+  };
+  context.font = Math.max(12, parseInt(((d.freq / total_freq)*(10**8))**0.25))+'px Arial';
+  context.fillText(d.term, d.x+5, d.y+3);
+}
+
+</script>
+</body>
+</html>
