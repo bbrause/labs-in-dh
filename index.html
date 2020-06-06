@@ -18,22 +18,49 @@
 </head>
 <body>
   <div class="ontop">
-    <div id="titlebox" class="ontop-inner">"LAB" / "LABORATORY"<br>
-    sentence co-occurrence graph<br><br>
+    <div id="titlebox" class="ontop-inner">
+    Sentence Co-occurrence Graph<br><br>
+    <input type="text" id="search_term" name="dhq" value="lab / laboratory"><br><br>
     <hr>
-    Journals: <br>"Digital Scholarship in the Humanities" (1986 - 2020)<br>
-    "Language, Resources and Evaluation" (1966 - 2019)<br>
-    "Digital Humanities Quarterly" (2007 - 2019)<hr>
-    tokenized & lemmatized using spaCy
+    Journals: <br>
+    <input type="checkbox" class="journal" name="dhq" value="dhq" checked> "Digital Humanities Quarterly" (2007 - 2019)<br>
+    <input type="checkbox" class="journal" name="dsh" value="dsh" checked> "Digital Scholarship in the Humanities" (1986 - 2020)<br>
+    <input type="checkbox" class="journal" name="lre" value="lre" checked> "Language, Resources and Evaluation" (1966 - 2019) <br><br>
+    tokenized & lemmatized using spaCy<hr>
+    Decades: <br>
+    <input type="checkbox" class="decade" name="1960" value="1960" checked> 1960s    
+    <input type="checkbox" class="decade" name="1970" value="1970" checked> 1970s    
+    <input type="checkbox" class="decade" ame="1980" value="1980" checked> 1980s    
+    <input type="checkbox" class="decade" name="1990" value="1990" checked> 1990s    
+    <input type="checkbox" class="decade" name="2000" value="2000" checked> 2000s    
+    <input type="checkbox" class="decade" name="2010" value="2010" checked> 2010s    
     </div>
     <div id="settingsbox" class="ontop-inner">
-      link strength: <input style="width:240px;" type="range" id="linkstrength" min="0.1" max="0.9" step="any" value="0.5">
       <button type="button" id="load" onclick="load_button(this)">load data</button>
-      <button type="button" id="draw" onclick="draw_button(this)" disabled="true">calculate & draw</button>
+      <button type="button" id="draw" onclick="draw_button(this)" disabled="true">calculate & draw</button><br><br>
+      
     </div>
   </div>
     <div id="graph"></div>
 <script>
+
+function check() {
+  journals = [];
+
+  for (let checkbox of document.getElementsByClassName("journal")) {
+    if (checkbox.checked == true) {
+      journals.push(checkbox.value);
+    }
+  }
+  
+  decades = [];
+
+  for (let checkbox of document.getElementsByClassName("decade")) {
+    if (checkbox.checked == true) {
+      decades.push(checkbox.value);
+    }
+  }
+}
 
 async function load_button(b) {
   b.innerHTML = "please wait...";
@@ -45,6 +72,9 @@ async function load_button(b) {
 }
 
 async function draw_button(b) {
+  check();
+  seed_word = document.getElementById("search_term").value;
+  seed_idx = getKeyByValue(vocabulary, seed_word);
   b.innerHTML = "please wait...";
   b.style.pointerEvents = "none";
   await sleep(100);
@@ -279,7 +309,7 @@ function link_in_graph(source, target, links) {
   return false;
 };
 
-var seed_word = "theory";
+var seed_word = "New York";
 var seed_idx;
 
 var threshold = 5;
