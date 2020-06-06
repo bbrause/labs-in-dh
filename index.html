@@ -33,7 +33,12 @@
     <input type="checkbox" class="decade" ame="1980" value="1980" checked> 1980s    
     <input type="checkbox" class="decade" name="1990" value="1990" checked> 1990s    
     <input type="checkbox" class="decade" name="2000" value="2000" checked> 2000s    
-    <input type="checkbox" class="decade" name="2010" value="2010" checked> 2010s    
+    <input type="checkbox" class="decade" name="2010" value="2010" checked> 2010s
+    <hr>
+    Number of Co-Occurrences:
+    <input type="range" id="rangeInput" name="rangeInput" min="1" max="100" value="20"
+       oninput="range_input(this)">                                                       
+    <output id="amount" name="amount" for="rangeInput">20</output>
     </div>
     <div id="settingsbox" class="ontop-inner">
       <button type="button" id="load" onclick="load_button(this)">load data</button>
@@ -44,7 +49,17 @@
     <div id="graph"></div>
 <script>
 
+function range_input(slider) {
+  document.getElementById("amount").value = slider.value;
+  cutoff_num = slider.value;
+
+  start();
+}
+
 function check() {
+  seed_word = document.getElementById("search_term").value;
+  seed_idx = getKeyByValue(vocabulary, seed_word);
+
   journals = [];
 
   for (let checkbox of document.getElementsByClassName("journal")) {
@@ -60,6 +75,8 @@ function check() {
       decades.push(checkbox.value);
     }
   }
+
+  cutoff_num = document.getElementById("rangeInput").value;
 }
 
 async function load_button(b) {
@@ -73,8 +90,6 @@ async function load_button(b) {
 
 async function draw_button(b) {
   check();
-  seed_word = document.getElementById("search_term").value;
-  seed_idx = getKeyByValue(vocabulary, seed_word);
   b.innerHTML = "please wait...";
   b.style.pointerEvents = "none";
   await sleep(100);
@@ -495,11 +510,11 @@ var canvas = document.querySelector("canvas"),
 
 var simulation = d3.forceSimulation()
     .force("link", d3.forceLink().id(function(d) { return d.id; }))
+    .alphaTarget(0.3)
     .force("charge", d3.forceManyBody().strength(-800))
     .force("center", d3.forceCenter(width / 2, height / 2))
-    .force("collide", d3.forceCollide().radius(33).strength(0.1))
-    //.alphaTarget(0.01);
-    //.alphaDecay(0.02);
+    .force("collide", d3.forceCollide().radius(33).strength(0.1));
+    .alphaDecay(0.5);
 
 d3.select("input[id=linkstrength]")
     .on("input", inputted);
@@ -550,6 +565,8 @@ function drawGraph(graph) {
   function dragsubject() {
     return simulation.find(d3.event.x, d3.event.y);
   }
+  
+  simulation.restart();
 };
 
 function inputted() {
