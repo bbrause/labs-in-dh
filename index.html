@@ -741,7 +741,6 @@ function drawNode(d) {
     context.font = '18px Arial';
     } else {
       var sig = get_significance(d);
-      console.log((sig - mean_sig) / std_sig);
       context.font = Math.min(18, Math.max(12, parseInt(16 + ((sig - mean_sig) / std_sig)*1.5)))+'px Arial';
     }
   }
