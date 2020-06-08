@@ -66,7 +66,7 @@
         oninput="range_input(this)">                                                       
       <output id="amount" name="amount" for="rangeInput">20</output><br>
       <input type="checkbox" id="polycooc" name="polycooc" value="polycooc" checked> include co-occurrences of co-occurrences<br><br>
-      prune all nodes with degree < <input type="number" name="min_degree" id="min_degree" min="0" max="100" value="2"><br><br>
+      prune all nodes with degree < <input type="number" name="min_degree" id="min_degree" min="1" max="50" value="2"><br><br>
       <button type="button" id="draw" onclick="draw_button(this)" disabled="true">calculate & draw</button><br><br>
       font-size by <select name="nodesize" id="nodesize" onchange="change_nodesize(this)" disabled="true">
         <option value="freq">word frequency</option>
