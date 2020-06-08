@@ -19,12 +19,13 @@
 <body>
   <div class="ontop">
     <div id="titlebox" class="ontop-inner">
-    Sentence Co-occurrence Graph<br><br>
-    <input type="text" id="search_term" name="dhq" value="lab / laboratory"><br><br>
+    Sentence Co-occurrence Graph      
+    <button type="button" id="load" onclick="load_button(this)">load data</button><br><br>
+    <input type="text" id="search_term" name="dhq" value="lab / laboratory">
     <hr>
     Journals: <br>
     <input type="checkbox" class="journal" name="dhq" value="dhq" checked> "Digital Humanities Quarterly" (2007 - 2019)<br>
-    <input type="checkbox" class="journal" name="dsh" value="dsh" checked> "Digital Scholarship in the Humanities" (1986 - 2020)<br>
+    <input type="checkbox" class="journal" name="dsh" value="dsh" checked> "Digital Scholarship in the Humanities" (1986 - 2019)<br>
     <input type="checkbox" class="journal" name="lre" value="lre" checked> "Language, Resources and Evaluation" (1966 - 2019) <br><br>
     tokenized & lemmatized using spaCy<hr>
     Decades: <br>
@@ -35,29 +36,36 @@
     <input type="checkbox" class="decade" name="2000" value="2000" checked> 2000s    
     <input type="checkbox" class="decade" name="2010" value="2010" checked> 2010s
     <hr>
-    Number of Co-Occurrences:
-    <input type="range" id="rangeInput" name="rangeInput" min="1" max="100" value="20"
+    significance measure:
+    <select name="measure" id="measure" onchange="change_measure(this)" disabled="true">
+      <option value="ll">Log-Likelihood</option>
+      <option value="poisson">Poisson</option>
+      <option value="dice">Dice</option>
+      <option value="mutinf">Mutual Information</option>
+    </select><br>
+    number of co-occurrences:
+    <input type="range" id="rangeInput" name="rangeInput" min="1" max="50" value="20"
        oninput="range_input(this)">                                                       
-    <output id="amount" name="amount" for="rangeInput">20</output>
-    </div>
-    <div id="settingsbox" class="ontop-inner">
-      <button type="button" id="load" onclick="load_button(this)">load data</button>
-      <button type="button" id="draw" onclick="draw_button(this)" disabled="true">calculate & draw</button><br><br>
-      
-    </div>
+    <output id="amount" name="amount" for="rangeInput">20</output><br><br>
+    <input type="checkbox" id="polycooc" name="polycooc" value="polycooc" checked> include co-occurrences of co-occurrences<br><br>
+    <button type="button" id="draw" onclick="draw_button(this)" disabled="true">calculate & draw</button><br><br>
+  </div>
   </div>
     <div id="graph"></div>
 <script>
+function change_measure(select) {
+  metric = select.value;
+}
 
 function range_input(slider) {
   document.getElementById("amount").value = slider.value;
   cutoff_num = slider.value;
-
-  start();
 }
 
 function check() {
   seed_word = document.getElementById("search_term").value;
+  metric = document.getElementById("measure").value;
+  polycooc = document.getElementById("polycooc").checked;
   seed_idx = getKeyByValue(vocabulary, seed_word);
 
   journals = [];
@@ -86,6 +94,7 @@ async function load_button(b) {
   b.innerHTML = "data loaded";
   b.disabled = true;
   document.getElementById("draw").disabled = false;
+  document.getElementById("measure").disabled = false;
 }
 
 async function draw_button(b) {
@@ -202,7 +211,7 @@ function get_top_cooc(term_id, top_num, metric) {
   var vocab_len = Object.keys(vocabulary).length;
   var n = get_total_token_count();
 
-  var loglik_dict = {};
+  var sigcooc_dict = {};
 
   var cooc_arr = get_cooc_arr(term_id);
 
@@ -213,11 +222,19 @@ function get_top_cooc(term_id, top_num, metric) {
     var n_ab = cooc_arr[i];
     var n_a = term_freq[term_id];
     var n_b = term_freq[i];
-    coeff = loglik(n_ab, n_a, n_b, n);
-    loglik_dict[i] = coeff;
+    if (metric == "ll") {
+      coeff = loglik(n_ab, n_a, n_b, n);
+    } else if (metric == "dice") {
+      coeff = dice(n_ab, n_a, n_b, n);
+    } else if (metric == "mutinf") {
+      coeff = mutinf(n_ab, n_a, n_b, n);
+    } else if (metric == "poisson") {
+      coeff = poisson(n_ab, n_a, n_b, n);
+    }
+    sigcooc_dict[i] = coeff;
   }
 
-  return sortProperties(loglik_dict).slice(0, top_num);
+  return sortProperties(sigcooc_dict).slice(0, top_num);
 }
 
 async function add_dict_to_dict_nested(base, to_add) {
@@ -309,6 +326,32 @@ function loglik(n_ab, n_a, n_b, n) {
   return 2*Math.log(lambda);
 }
 
+function mutinf(n_ab, n_a, n_b, n) {
+  if (n_ab == 0) {
+    return 0;
+  }
+
+  return n_ab * Math.log2((n * n_ab) / (n_a * n_b));
+}
+
+function dice(n_ab, n_a, n_b, n) {
+  if (n_ab == 0) {
+    return 0;
+  }
+
+  return (2 * n_ab / (n_a + n_b));
+}
+
+function poisson(n_ab, n_a, n_b, n) {
+  if (n_ab == 0) {
+    return 0;
+  }
+
+  var lambda = (n_a * n_b) / n;
+
+  return n_ab * (Math.log(n_ab) - Math.log(lambda) - 1)
+}
+
 function getKeyByValue(object, value) {
     return Object.keys(object).find(key => object[key] === value);
 };
@@ -327,12 +370,13 @@ function link_in_graph(source, target, links) {
 var seed_word = "New York";
 var seed_idx;
 
-var threshold = 5;
+var threshold = 0;
 var cutoff_num = 25;
 var min_degree = 2;
-var cooc_num = 100;
+var cooc_num = 50;
 var metric = "ll";
 var total_freq;
+var polycooc = true;
 
 var graph = {};
 
@@ -415,28 +459,32 @@ async function start() {
         graph["links"].push({ "source" : seed_idx, "target" : term_id_a, "significance" : coeff })
       }
 
-      cooc_arr_a = sortProperties(sig_matrix[term_id_a]).slice(0, cutoff_num);
+      if (polycooc == true) {
+        cooc_arr_a = sortProperties(sig_matrix[term_id_a]).slice(0, cutoff_num);
 
-      for (let cooc_b of cooc_arr_a) {
-        term_id_b = cooc_b[0];
+        for (let cooc_b of cooc_arr_a) {
+          term_id_b = cooc_b[0];
 
-        if (sig_matrix[term_id_a][term_id_b] < threshold) {
-          break;
-        }
-        if (!term_in_nodes(term_id_b, graph["nodes"])) {
-          graph["nodes"].push({ "id" : term_id_b, "term": vocabulary[term_id_b], "freq" : term_freq[term_id_b] });
-        }
-        if (!link_in_graph(term_id_a, term_id_b, graph["links"])) {
-            coeff = sig_matrix[term_id_a][term_id_b];
-            graph["links"].push({ "source" : term_id_a, "target" : term_id_b, "significance" : coeff })
+          if (sig_matrix[term_id_a][term_id_b] < threshold) {
+            break;
+          }
+          if (!term_in_nodes(term_id_b, graph["nodes"])) {
+            graph["nodes"].push({ "id" : term_id_b, "term": vocabulary[term_id_b], "freq" : term_freq[term_id_b] });
+          }
+          if (!link_in_graph(term_id_a, term_id_b, graph["links"])) {
+              coeff = sig_matrix[term_id_a][term_id_b];
+              graph["links"].push({ "source" : term_id_a, "target" : term_id_b, "significance" : coeff })
+          }
         }
       }
     }
 
-    for (var i = graph["nodes"].length - 1; i >= 0; i--) {
-      var number = get_number_of_links(graph["nodes"][i], graph["links"]);
-      if (number < min_degree & graph["nodes"][i].id != seed_idx) {
-        graph["nodes"].splice(i, 1);
+    if (polycooc == true) {
+      for (var i = graph["nodes"].length - 1; i >= 0; i--) {
+        var number = get_number_of_links(graph["nodes"][i], graph["links"]);
+        if (number < min_degree & graph["nodes"][i].id != seed_idx) {
+          graph["nodes"].splice(i, 1);
+        }
       }
     }
 
@@ -510,11 +558,10 @@ var canvas = document.querySelector("canvas"),
 
 var simulation = d3.forceSimulation()
     .force("link", d3.forceLink().id(function(d) { return d.id; }))
-    .alphaTarget(0.3)
-    .force("charge", d3.forceManyBody().strength(-800))
+    .force("charge", d3.forceManyBody().strength(-500))
     .force("center", d3.forceCenter(width / 2, height / 2))
-    .force("collide", d3.forceCollide().radius(33).strength(0.1));
-    .alphaDecay(0.5);
+    .force("collide", d3.forceCollide().radius(10).strength(0.1))
+    .alphaDecay(0.008);
 
 d3.select("input[id=linkstrength]")
     .on("input", inputted);
@@ -566,6 +613,7 @@ function drawGraph(graph) {
     return simulation.find(d3.event.x, d3.event.y);
   }
   
+  simulation.alpha(1.0);
   simulation.restart();
 };
 
