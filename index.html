@@ -462,14 +462,14 @@ async function init() {
     return;
   }
   add_status("calculate term frequencies");
-  sleep(100);
+  await sleep(100);
   term_freq = await get_term_freq(journals, decades);
   if (Object.keys(term_freq).length == 0) {
     add_status("no data for selected journals and decades!")
     return;
   }
   add_status("calculate significance values");
-  sleep(100);
+  await sleep(100);
   sig_matrix = await get_sig_matrix();
   total_freq = get_total_token_count();
   await start();
@@ -630,7 +630,7 @@ var simulation = d3.forceSimulation()
     .force("charge", d3.forceManyBody().strength(-500))
     .force("center", d3.forceCenter(width * 0.55, height / 2))
     .force("collide", d3.forceCollide().radius(function(d) { return 5*(d.freq**0.2);}).strength(0.5))
-    .alphaDecay(0.008);
+    .alphaDecay(0.01);
 
 function drawGraph(graph) {
   simulation
@@ -735,14 +735,14 @@ function drawNode(d) {
   context.moveTo(d.x + 3, d.y);
   context.arc(d.x, d.y, 3, 0, 2 * Math.PI);
   if (nodesize == "freq") {
-    context.font = Math.max(12, parseInt(((d.freq / total_freq)*(10**8))**0.24))+'px Arial';
+    context.font = Math.max(12, parseInt(((d.freq / total_freq)*(10**8))**0.23))+'px Arial';
   } else {
     if (d.id == seed_idx) {
     context.font = '18px Arial';
     } else {
       var sig = get_significance(d);
       console.log((sig - mean_sig) / std_sig);
-      context.font = Math.max(12, parseInt(16 + ((sig - mean_sig) / std_sig)*2))+'px Arial';
+      context.font = Math.min(18, Math.max(12, parseInt(16 + ((sig - mean_sig) / std_sig)*1.5)))+'px Arial';
     }
   }
   if (d.id == seed_idx) {
