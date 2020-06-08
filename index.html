@@ -76,6 +76,7 @@
       status:<br>
       <div id="status-inner" class="status"></div>
     </div>
+  
   </div>
     <div id="graph"></div>
 <script>
@@ -150,8 +151,8 @@ const sleep = (milliseconds) => {
 }
 
 var journal_data = {};
-journal_data["dsh"] = [1980, 1990, 2000, 2010];
 journal_data["lre"] = [1960, 1970, 1980, 1990, 2000, 2010];
+journal_data["dsh"] = [1980, 1990, 2000, 2010];
 journal_data["dhq"] = [2000, 2010];
 
 function sortProperties(obj) {
@@ -445,6 +446,7 @@ async function init() {
   seed_idx = getKeyByValue(vocabulary, seed_word);
   if (typeof seed_idx === "undefined") {
     add_status("seed word not in vocabulary!");
+    return;
   }
   add_status("calculate term frequencies");
   sleep(100);
