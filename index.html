@@ -44,7 +44,7 @@
       <input type="checkbox" class="journal" name="dhq" value="dhq" checked> "Digital Humanities Quarterly" (2007 - 2019)<br>
       <input type="checkbox" class="journal" name="dsh" value="dsh" checked> "Digital Scholarship in the Humanities" (1986 - 2019)<br>
       <input type="checkbox" class="journal" name="lre" value="lre" checked> "Language, Resources and Evaluation" (1966 - 2019) <br><br>
-      tokenized & lemmatized using spaCy<hr>
+      tokenized & lemmatized using spaCy<hr><br>
       decades: <br>
       <input type="checkbox" class="decade" name="1960" value="1960" checked> 1960s    
       <input type="checkbox" class="decade" name="1970" value="1970" checked> 1970s    
@@ -52,7 +52,7 @@
       <input type="checkbox" class="decade" name="1990" value="1990" checked> 1990s    
       <input type="checkbox" class="decade" name="2000" value="2000" checked> 2000s    
       <input type="checkbox" class="decade" name="2010" value="2010" checked> 2010s
-      <hr>
+      <hr><br>
       seed word: <input type="text" id="search_term" name="dhq" value="lab / laboratory"><br><br>
       significance measure:
       <select name="measure" id="measure" onchange="change_measure(this)" disabled="true">
@@ -60,7 +60,7 @@
         <option value="poisson">Poisson</option>
         <option value="dice">Dice</option>
         <option value="mutinf">Mutual Information</option>
-      </select><br>
+      </select><br><br>
       number of co-occurrences:
       <input type="range" id="rangeInput" name="rangeInput" min="1" max="50" value="20"
         oninput="range_input(this)">                                                       
@@ -105,7 +105,6 @@ function check() {
   metric = document.getElementById("measure").value;
   polycooc = document.getElementById("polycooc").checked;
   min_degree = document.getElementById("min_degree").value;
-  seed_idx = getKeyByValue(vocabulary, seed_word);
 
   journals = [];
 
@@ -237,10 +236,6 @@ function get_cooc_arr(term_id) {
     if (value > 0) {
       cooc_arr[i] = value;
     }
-  }
-
-  if (term_id == seed_idx) {
-    console.log(cooc_arr);
   }
 
   return cooc_arr;
@@ -447,18 +442,23 @@ async function load_all_data() {
 }
 
 async function init() {
-    // term_freq = await d3.json("term_freq_interconnect_25.json");
-     // cooc_matrix = await d3.json("logl_cooc_interconnect_25.json");
-
-    // cooc_matrix = await get_cooc_matrix(journals, decades);
-    // console.log("cooc");
-    add_status("calculate term frequencies");
-    term_freq = await get_term_freq(journals, decades);
-    add_status("calculate significance values");
-    sig_matrix = await get_sig_matrix();
-    total_freq = get_total_token_count();
-    await start();
-    add_status("finished drawing!");
+  seed_idx = getKeyByValue(vocabulary, seed_word);
+  if (typeof seed_idx === "undefined") {
+    add_status("seed word not in vocabulary!");
+  }
+  add_status("calculate term frequencies");
+  sleep(100);
+  term_freq = await get_term_freq(journals, decades);
+  if (Object.keys(term_freq).length == 0) {
+    add_status("no data for selected journals and decades!")
+    return;
+  }
+  add_status("calculate significance values");
+  sleep(100);
+  sig_matrix = await get_sig_matrix();
+  total_freq = get_total_token_count();
+  await start();
+  add_status("finished drawing!");
 }
 
 function term_in_nodes(term, nodes) {
