@@ -53,7 +53,7 @@
       <input type="checkbox" class="decade" name="2000" value="2000" checked> 2000s    
       <input type="checkbox" class="decade" name="2010" value="2010" checked> 2010s
       <hr><br>
-      seed word: <input type="text" id="search_term" name="dhq" value="lab / laboratory"><br><br>
+      seed word: <input type="text" id="search_term" name="dhq" value="theory"><br><br>
       significance measure:
       <select name="measure" id="measure" onchange="change_measure(this)" disabled="true">
         <option value="ll">log-likelihood</option>
@@ -707,7 +707,7 @@ function dragended() {
 function drawLink(d) {
   context.moveTo(d.source.x, d.source.y);
   context.lineTo(d.target.x, d.target.y);
-  if (d.source.id == "lab / laboratory") {
+  if (d.source.id == seed_word) {
     context.strokeStyle = "darkred";
   } else {
     context.strokeStyle = "#ccc";
